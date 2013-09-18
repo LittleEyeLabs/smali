@@ -1,5 +1,6 @@
 /.gradle
 /baksmali/build
+/dexlib/bin
 /dexlib/build
 /dexlib2/build
 /dexlib2/accessorTestGenerator/build
@@ -9,5 +10,4 @@
 #eclipse files
 .classpath
 .project
-.gitignore
 .settings
