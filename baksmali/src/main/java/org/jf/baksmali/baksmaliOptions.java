@@ -70,6 +70,9 @@ public class baksmaliOptions {
     public ClassPath classPath = null;
     public int jobs = -1;
 
+    public boolean transform = true;
+    public String transformedFile = "transformed.dex";
+    
     public SyntheticAccessorResolver syntheticAccessorResolver = null;
 
     public void setBootClassPath(String bootClassPath) {

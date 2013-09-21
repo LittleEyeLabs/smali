@@ -137,6 +137,11 @@ public class baksmali {
 
         File smaliFile = fileNameHandler.getUniqueFilenameForClass(classDescriptor);
 
+        // GL: Seems like a good place to transform
+        if (options.transform) {
+        	classDef = umbreyta.transformClass(classDef);
+        }
+
         //create and initialize the top level string template
         ClassDefinition classDefinition = new ClassDefinition(options, classDef);
 
