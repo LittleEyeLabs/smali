@@ -139,7 +139,16 @@ public class baksmali {
 
         // GL: Seems like a good place to transform
         if (options.transform) {
-        	classDef = umbreyta.transformClass(classDef);
+        	boolean succeeded = false;
+        	try {
+        		classDef = umbreyta.transformClass(classDef);
+        		succeeded = true;
+        	} finally {
+        		if (!succeeded) {
+        			System.err.println("Error in: "+classDef);
+        		}
+        		
+        	}
         }
 
         //create and initialize the top level string template
