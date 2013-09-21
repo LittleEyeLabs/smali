@@ -3,11 +3,19 @@ package org.jf.baksmali;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.jf.dexlib2.builder.MutableMethodImplementation;
+import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.Method;
+import org.jf.dexlib2.iface.MethodImplementation;
+import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.immutable.ImmutableClassDef;
 import org.jf.dexlib2.immutable.ImmutableMethod;
+import org.jf.dexlib2.immutable.ImmutableMethodImplementation;
+import org.jf.dexlib2.immutable.instruction.ImmutableInstruction;
+import org.jf.dexlib2.immutable.instruction.ImmutableInstruction35c;
+import org.jf.dexlib2.immutable.reference.ImmutableMethodReference;
+
+import com.google.common.collect.ImmutableList;
 
 /**
  * umbreyta is icelandic for transform :-)
@@ -21,56 +29,134 @@ import org.jf.dexlib2.immutable.ImmutableMethod;
  */
 public class umbreyta {
 	
-    static ClassDef transformClass(ClassDef oldClassDef) {
-        System.out.println("\nProcessing Class: "+oldClassDef);
-        ImmutableClassDef classDef = ImmutableClassDef.of(oldClassDef);
-        
-        // First, scan and see if we need to modify this class
-        
-        
-        // if need to modify, then need to create a new list of methods
-        // then go through each method and add it to the list
-        List<ImmutableMethod> newMethods = new ArrayList<ImmutableMethod>();
-        Iterable<? extends Method> methods = classDef.getMethods();
+	final static String INSTRUMENTATION_PACKAGE = "Lcom/littleeyelabs/instrumentation";
+	
+	final static String DEFAULT_HTTPCLIENT = "Lorg/apache/http/impl/client/DefaultHttpClient;";
+	final static String HTTPCLIENT = "Lorg/apache/http/client/HttpClient;";
+	final static String HTTPCLIENT_WRAPPER = "Lcom/littleeyelabs/instrumentation/HttpClientWrapper;";
+	final static String EXECUTE = "execute";
+	
+	
+	final static String HTTP_URI_REQ = "Lorg/apache/http/client/methods/HttpUriRequest;";
+	final static String HTTP_RESPONSE = "Lorg/apache/http/HttpResponse;";
+	
 
-        for (Method method: methods) {
-            System.out.println("Processing Method: " + method.getName());
-            
-            MutableMethodImplementation methodImpl = new MutableMethodImplementation(method.getImplementation());
-            ImmutableMethod newMethod = new ImmutableMethod(
-            		method.getDefiningClass(),
-            		method.getName(),
-            		method.getParameters(),
-            		method.getReturnType(),
-            		method.getAccessFlags(),
-            		method.getAnnotations(),
-                    //mutableMethodImplementation);
-            		methodImpl);
-            newMethods.add(newMethod);
+    static ClassDef transformClass(ClassDef dexClassDef) {
+        System.out.println("\nProcessing Class: " + dexClassDef);
+        ImmutableClassDef classDef = ImmutableClassDef.of(dexClassDef);
+
+        // First, scan and see if we need to modify this class
+        boolean needToChange = needToTransform(classDef);
+
+        if (needToChange) {
+            Iterable<? extends Method> methods = classDef.getMethods();
+            List<Method> newMethods = new ArrayList<Method>();
+
+            for (Method method: methods) {
+                System.out.println("Processing Method: " + method.getName());
+                newMethods.add(transformMethod(method));
+            }
+        	
+            return new ImmutableClassDef(
+                    classDef.getType(),
+                    classDef.getAccessFlags(),
+                    classDef.getSuperclass(),
+                    classDef.getInterfaces(),
+                    classDef.getSourceFile(),
+                    classDef.getAnnotations(),
+                    classDef.getFields(),
+                    newMethods);
         }
         
-        
-        return new ImmutableClassDef(
-                classDef.getType(),
-                classDef.getAccessFlags(),
-                classDef.getSuperclass(),
-                classDef.getInterfaces(),
-                classDef.getSourceFile(),
-                classDef.getAnnotations(),
-                classDef.getFields(),
-                newMethods);
-        
-        
-//        Iterable<DexBackedMethod> methods = (Iterable<DexBackedMethod>) classDef.getMethods();
-//        
-//        for (DexBackedMethod method: methods) {
-//        	DexBackedMethodImplementation impl = method.getImplementation();
-//        	Iterable<Instruction> instructions = (Iterable<Instruction>) impl.getInstructions();
-//        	System.out.print("  Method: "+method.getName());
-//        	System.out.println("");
-//        	
-//        }
+        return classDef;
     }
+
+    
+    /**
+     * Transform a single method
+     * 
+     * @param method
+     * @return
+     */
+    private static Method transformMethod(Method method) {
+    	// A method contains a bunch of metadata (that shouldn't change in our
+    	// transformation) and an implementation.
+        MethodImplementation implementation = method.getImplementation();
+
+        // Go through each of the instructions and change them if required.
+        Iterable<? extends Instruction> instructions = implementation.getInstructions();
+        List<Instruction> newInstructions = new ArrayList<Instruction>();
+        
+        for (Instruction instruction:instructions) {
+        	Instruction newInstr = replaceInstruction(instruction);
+        	newInstructions.add(newInstr);
+        }
+
+        // Since converting the original MethodImplementation to MutableMethodImplementation doesn't work,
+        // could I just create a MutableMethodImplementation and add each instruction to it?
+        
+        MethodImplementation newImpl = new ImmutableMethodImplementation(
+        		implementation.getRegisterCount(),   // TODO: We may need to change this in some cases
+        		newInstructions,
+        		implementation.getTryBlocks(),
+        		implementation.getDebugItems());
+
+        ImmutableMethod newMethod = new ImmutableMethod(
+        		method.getDefiningClass(),
+        		method.getName(),
+        		method.getParameters(),
+        		method.getReturnType(),
+        		method.getAccessFlags(),
+        		method.getAnnotations(),
+        		newImpl);
+        
+        return newMethod;
+    }
+        
+    
+    
+	// TODO: Do the conversion
+    private static Instruction replaceInstruction(Instruction old) {
+    	Opcode op = old.getOpcode();
+    	if (old instanceof ImmutableInstruction35c) {
+    		ImmutableInstruction35c old35c = (ImmutableInstruction35c) old;
+    		
+    		// Think about whether these casts are a bad idea
+    		ImmutableMethodReference ref = (ImmutableMethodReference) old35c.getReference();
+    		
+    		// debug - get the httpclient wrapper MethodRef details
+    		if (ref.getDefiningClass().equals(HTTPCLIENT_WRAPPER) && (ref.getName().equals(EXECUTE))) {
+    			int debug = 0;
+    		}
+    		
+    		// do the actual conversion
+    		if (ref.getDefiningClass().equals(HTTPCLIENT) && (ref.getName().equals(EXECUTE))) {
+    			ImmutableMethodReference clientWrapperRef = new ImmutableMethodReference(HTTPCLIENT_WRAPPER, EXECUTE,
+    					ImmutableList.of(HTTPCLIENT, HTTP_URI_REQ),
+    					HTTP_RESPONSE);
+    			
+    			// TODO: Figure out how to get the MethodRef for the Wrapper function
+    			ImmutableInstruction35c newInstruction = new ImmutableInstruction35c(Opcode.INVOKE_STATIC, 2,
+    					old35c.getRegisterC(), old35c.getRegisterD(), old35c.getRegisterE(), old35c.getRegisterF(), old35c.getRegisterG(),
+    					clientWrapperRef);
+    			
+    			return newInstruction;
+    		}
+    		
+    	}
+    	return ImmutableInstruction.of(old);
+    }
+    
+    private static boolean needToTransform(ClassDef classDef) {
+    	// TODO: Check if class needs to be transformed
+    	if (classDef.toString().startsWith(INSTRUMENTATION_PACKAGE)) {
+    		System.out.println("*** Skip instrumentation class");
+    		return false;
+    	}
+    
+    	return true;
+    }
+
 
 
 }
