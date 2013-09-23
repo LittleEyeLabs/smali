@@ -8,6 +8,7 @@ import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.Method;
 import org.jf.dexlib2.iface.MethodImplementation;
 import org.jf.dexlib2.iface.instruction.Instruction;
+import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
 import org.jf.dexlib2.immutable.ImmutableClassDef;
 import org.jf.dexlib2.immutable.ImmutableMethod;
 import org.jf.dexlib2.immutable.ImmutableMethodImplementation;
@@ -28,32 +29,46 @@ import com.google.common.collect.ImmutableList;
  * @author gaurav lochan
  */
 public class umbreyta {
-	
+	// Instrumentation
 	final static String INSTRUMENTATION_PACKAGE = "Lcom/littleeyelabs/instrumentation";
+	final static String HTTPCLIENT_WRAPPER = "Lcom/littleeyelabs/instrumentation/HttpClientWrapper;";
+	final static String INSTRUMENTATION_FACTORY = "Lcom/littleeyelabs/instrumentation/InstrumentationFactory;";
 	
+	
+	// Classes
 	final static String DEFAULT_HTTPCLIENT = "Lorg/apache/http/impl/client/DefaultHttpClient;";
 	final static String HTTPCLIENT = "Lorg/apache/http/client/HttpClient;";
-	final static String HTTPCLIENT_WRAPPER = "Lcom/littleeyelabs/instrumentation/HttpClientWrapper;";
+	
+	// Methods
 	final static String EXECUTE = "execute";
 	
-	
+	// Argument types
 	final static String HTTP_URI_REQ = "Lorg/apache/http/client/methods/HttpUriRequest;";
+	
+	// Return type
 	final static String HTTP_RESPONSE = "Lorg/apache/http/HttpResponse;";
 	
 
-    static ClassDef transformClass(ClassDef dexClassDef) {
-        System.out.println("\nProcessing Class: " + dexClassDef);
-        ImmutableClassDef classDef = ImmutableClassDef.of(dexClassDef);
+	
+    // invoke-virtual {v2}, Ljava/net/URL;->openConnection()Ljava/net/URLConnection;
+	// to
+	// invoke-static {v2}, Lcom/littleeyelabs/instrumentation/InstrumentationFactory;->getUrlConnection(Ljava/net/URL;)Ljava/net/URLConnection;
+	final static String URL_CLASS = "Ljava/net/URL;";
+	final static String OPEN_CONN_METHOD = "openConnection";
+	final static String URL_CONNECTION = "Ljava/net/URLConnection;";
+
+    static ClassDef transformClass(ClassDef classDef) {
+        System.out.println("\nProcessing Class: " + classDef);
 
         // First, scan and see if we need to modify this class
         boolean needToChange = needToTransform(classDef);
+        
 
         if (needToChange) {
-            Iterable<? extends Method> methods = classDef.getMethods();
+        	Iterable<? extends Method> methods = classDef.getMethods();
             List<Method> newMethods = new ArrayList<Method>();
 
             for (Method method: methods) {
-                System.out.println("Processing Method: " + method.getName());
                 newMethods.add(transformMethod(method));
             }
         	
@@ -79,6 +94,8 @@ public class umbreyta {
      * @return
      */
     private static Method transformMethod(Method method) {
+        System.out.println("  Processing Method: " + method.getName());
+
     	// A method contains a bunch of metadata (that shouldn't change in our
     	// transformation) and an implementation.
         MethodImplementation implementation = method.getImplementation();
@@ -117,32 +134,53 @@ public class umbreyta {
     
 	// TODO: Do the conversion
     private static Instruction replaceInstruction(Instruction old) {
+        // System.out.println("    Processing Instruction: " + old.getOpcode());
+
     	Opcode op = old.getOpcode();
-    	if (old instanceof ImmutableInstruction35c) {
-    		ImmutableInstruction35c old35c = (ImmutableInstruction35c) old;
-    		
-    		// Think about whether these casts are a bad idea
+
+    	if (old instanceof Instruction35c) {
+    		// Cast to ImmutableInstruction since it has methods we need
+    		ImmutableInstruction35c old35c = (ImmutableInstruction35c) ImmutableInstruction35c.of(old);
     		ImmutableMethodReference ref = (ImmutableMethodReference) old35c.getReference();
     		
     		// debug - get the httpclient wrapper MethodRef details
     		if (ref.getDefiningClass().equals(HTTPCLIENT_WRAPPER) && (ref.getName().equals(EXECUTE))) {
     			int debug = 0;
     		}
-    		
+
+    		if (ref.getDefiningClass().equals(INSTRUMENTATION_FACTORY) && (ref.getName().equals(OPEN_CONN_METHOD))) {
+    			int debug = 0;
+    		}
+
     		// do the actual conversion
     		if (ref.getDefiningClass().equals(HTTPCLIENT) && (ref.getName().equals(EXECUTE))) {
+    	        System.out.println("    *** Replacing Instruction: " + HTTPCLIENT + "->" + EXECUTE);
+    			
     			ImmutableMethodReference clientWrapperRef = new ImmutableMethodReference(HTTPCLIENT_WRAPPER, EXECUTE,
     					ImmutableList.of(HTTPCLIENT, HTTP_URI_REQ),
     					HTTP_RESPONSE);
     			
-    			// TODO: Figure out how to get the MethodRef for the Wrapper function
     			ImmutableInstruction35c newInstruction = new ImmutableInstruction35c(Opcode.INVOKE_STATIC, 2,
-    					old35c.getRegisterC(), old35c.getRegisterD(), old35c.getRegisterE(), old35c.getRegisterF(), old35c.getRegisterG(),
+    					old35c.getRegisterC(), old35c.getRegisterD(), 0, 0, 0,
     					clientWrapperRef);
     			
     			return newInstruction;
     		}
     		
+    		if (ref.getDefiningClass().equals(URL_CLASS) && (ref.getName().equals(OPEN_CONN_METHOD))) {
+    	        System.out.println("    *** Replacing Instruction: " + URL_CLASS + "->" + OPEN_CONN_METHOD);
+
+    			ImmutableMethodReference clientWrapperRef = new ImmutableMethodReference(INSTRUMENTATION_FACTORY, OPEN_CONN_METHOD,
+    					ImmutableList.of(URL_CLASS),
+    					URL_CONNECTION);
+    			
+    			ImmutableInstruction35c newInstruction = new ImmutableInstruction35c(Opcode.INVOKE_STATIC, 1,
+    					old35c.getRegisterC(), 0, 0, 0, 0,
+    					clientWrapperRef);
+    			
+    			return newInstruction;
+
+    		}
     	}
     	return ImmutableInstruction.of(old);
     }
