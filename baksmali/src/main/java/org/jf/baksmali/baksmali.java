@@ -117,7 +117,7 @@ public class baksmali {
         return !errorOccurred;
     }
 
-    private static boolean disassembleClass(ClassDef classDef, ClassFileNameHandler fileNameHandler,
+    public static boolean disassembleClass(ClassDef classDef, ClassFileNameHandler fileNameHandler,
                                             baksmaliOptions options) {
         /**
          * The path for the disassembly file is based on the package name
