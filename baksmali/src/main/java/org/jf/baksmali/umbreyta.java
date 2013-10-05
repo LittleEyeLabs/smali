@@ -15,6 +15,7 @@ import org.jf.dexlib2.immutable.ImmutableMethodImplementation;
 import org.jf.dexlib2.immutable.instruction.ImmutableInstruction;
 import org.jf.dexlib2.immutable.instruction.ImmutableInstruction35c;
 import org.jf.dexlib2.immutable.reference.ImmutableMethodReference;
+import org.jf.dexlib2.immutable.reference.ImmutableReference;
 
 import com.google.common.collect.ImmutableList;
 
@@ -101,23 +102,28 @@ public class umbreyta {
         MethodImplementation implementation = method.getImplementation();
 
         // Go through each of the instructions and change them if required.
-        Iterable<? extends Instruction> instructions = implementation.getInstructions();
-        List<Instruction> newInstructions = new ArrayList<Instruction>();
-        
-        for (Instruction instruction:instructions) {
-        	Instruction newInstr = replaceInstruction(instruction);
-        	newInstructions.add(newInstr);
+        MethodImplementation newImpl;
+        if (implementation != null) {
+            Iterable<? extends Instruction> instructions = implementation.getInstructions();
+            List<Instruction> newInstructions = new ArrayList<Instruction>();
+            
+            for (Instruction instruction:instructions) {
+            	Instruction newInstr = replaceInstruction(instruction);
+            	newInstructions.add(newInstr);
+            }
+
+	        // Since converting the original MethodImplementation to MutableMethodImplementation doesn't work,
+	        // could I just create a MutableMethodImplementation and add each instruction to it?
+	        
+	        newImpl = new ImmutableMethodImplementation(
+	        		implementation.getRegisterCount(),   // TODO: We may need to change this in some cases
+	        		newInstructions,
+	        		implementation.getTryBlocks(),
+	        		implementation.getDebugItems());
+        } else {
+        	newImpl = null;
         }
-
-        // Since converting the original MethodImplementation to MutableMethodImplementation doesn't work,
-        // could I just create a MutableMethodImplementation and add each instruction to it?
         
-        MethodImplementation newImpl = new ImmutableMethodImplementation(
-        		implementation.getRegisterCount(),   // TODO: We may need to change this in some cases
-        		newInstructions,
-        		implementation.getTryBlocks(),
-        		implementation.getDebugItems());
-
         ImmutableMethod newMethod = new ImmutableMethod(
         		method.getDefiningClass(),
         		method.getName(),
@@ -141,46 +147,53 @@ public class umbreyta {
     	if (old instanceof Instruction35c) {
     		// Cast to ImmutableInstruction since it has methods we need
     		ImmutableInstruction35c old35c = (ImmutableInstruction35c) ImmutableInstruction35c.of(old);
-    		ImmutableMethodReference ref = (ImmutableMethodReference) old35c.getReference();
+    		ImmutableReference ref2 = old35c.getReference();
+
+    		if (ref2 instanceof ImmutableMethodReference) {
+        		ImmutableMethodReference ref = (ImmutableMethodReference) ref2;
+        		
+        		// debug - get the httpclient wrapper MethodRef details
+        		if (ref.getDefiningClass().equals(HTTPCLIENT_WRAPPER) && (ref.getName().equals(EXECUTE))) {
+        			int debug = 0;
+        		}
+
+        		if (ref.getDefiningClass().equals(INSTRUMENTATION_FACTORY) && (ref.getName().equals(OPEN_CONN_METHOD))) {
+        			int debug = 0;
+        		}
+
+        		// do the actual conversion
+        		if (ref.getDefiningClass().equals(HTTPCLIENT) && (ref.getName().equals(EXECUTE))) {
+        	        System.out.println("    *** Replacing Instruction: " + HTTPCLIENT + "->" + EXECUTE);
+        			
+        			ImmutableMethodReference clientWrapperRef = new ImmutableMethodReference(HTTPCLIENT_WRAPPER, EXECUTE,
+        					ImmutableList.of(HTTPCLIENT, HTTP_URI_REQ),
+        					HTTP_RESPONSE);
+        			
+        			ImmutableInstruction35c newInstruction = new ImmutableInstruction35c(Opcode.INVOKE_STATIC, 2,
+        					old35c.getRegisterC(), old35c.getRegisterD(), 0, 0, 0,
+        					clientWrapperRef);
+        			
+        			return newInstruction;
+        		}
+        		
+        		if (ref.getDefiningClass().equals(URL_CLASS) && (ref.getName().equals(OPEN_CONN_METHOD))) {
+        	        System.out.println("    *** Replacing Instruction: " + URL_CLASS + "->" + OPEN_CONN_METHOD);
+
+        			ImmutableMethodReference clientWrapperRef = new ImmutableMethodReference(INSTRUMENTATION_FACTORY, OPEN_CONN_METHOD,
+        					ImmutableList.of(URL_CLASS),
+        					URL_CONNECTION);
+        			
+        			ImmutableInstruction35c newInstruction = new ImmutableInstruction35c(Opcode.INVOKE_STATIC, 1,
+        					old35c.getRegisterC(), 0, 0, 0, 0,
+        					clientWrapperRef);
+        			
+        			return newInstruction;
+
+        		}
+    		} else {
+    			System.out.println("Skipping since it's not a MethodReference " + ref2);
+    		}
     		
-    		// debug - get the httpclient wrapper MethodRef details
-    		if (ref.getDefiningClass().equals(HTTPCLIENT_WRAPPER) && (ref.getName().equals(EXECUTE))) {
-    			int debug = 0;
-    		}
-
-    		if (ref.getDefiningClass().equals(INSTRUMENTATION_FACTORY) && (ref.getName().equals(OPEN_CONN_METHOD))) {
-    			int debug = 0;
-    		}
-
-    		// do the actual conversion
-    		if (ref.getDefiningClass().equals(HTTPCLIENT) && (ref.getName().equals(EXECUTE))) {
-    	        System.out.println("    *** Replacing Instruction: " + HTTPCLIENT + "->" + EXECUTE);
-    			
-    			ImmutableMethodReference clientWrapperRef = new ImmutableMethodReference(HTTPCLIENT_WRAPPER, EXECUTE,
-    					ImmutableList.of(HTTPCLIENT, HTTP_URI_REQ),
-    					HTTP_RESPONSE);
-    			
-    			ImmutableInstruction35c newInstruction = new ImmutableInstruction35c(Opcode.INVOKE_STATIC, 2,
-    					old35c.getRegisterC(), old35c.getRegisterD(), 0, 0, 0,
-    					clientWrapperRef);
-    			
-    			return newInstruction;
-    		}
-    		
-    		if (ref.getDefiningClass().equals(URL_CLASS) && (ref.getName().equals(OPEN_CONN_METHOD))) {
-    	        System.out.println("    *** Replacing Instruction: " + URL_CLASS + "->" + OPEN_CONN_METHOD);
-
-    			ImmutableMethodReference clientWrapperRef = new ImmutableMethodReference(INSTRUMENTATION_FACTORY, OPEN_CONN_METHOD,
-    					ImmutableList.of(URL_CLASS),
-    					URL_CONNECTION);
-    			
-    			ImmutableInstruction35c newInstruction = new ImmutableInstruction35c(Opcode.INVOKE_STATIC, 1,
-    					old35c.getRegisterC(), 0, 0, 0, 0,
-    					clientWrapperRef);
-    			
-    			return newInstruction;
-
-    		}
     	}
     	return ImmutableInstruction.of(old);
     }
