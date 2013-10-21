@@ -71,19 +71,28 @@ public class umbreyta {
         	Iterable<? extends Method> methods = classDef.getMethods();
             List<Method> newMethods = new ArrayList<Method>();
 
+            boolean changed = false;
             for (Method method: methods) {
-                newMethods.add(transformMethod(method));
+            	Method transformed = transformMethod(method);
+            	if (transformed != null) {
+            		newMethods.add(transformed);
+            		changed = true;
+            	} else {
+            		newMethods.add(method);
+            	}
             }
         	
-            return new ImmutableClassDef(
-                    classDef.getType(),
-                    classDef.getAccessFlags(),
-                    classDef.getSuperclass(),
-                    classDef.getInterfaces(),
-                    classDef.getSourceFile(),
-                    classDef.getAnnotations(),
-                    classDef.getFields(),
-                    newMethods);
+            if (changed) {
+	            return new ImmutableClassDef(
+	                    classDef.getType(),
+	                    classDef.getAccessFlags(),
+	                    classDef.getSuperclass(),
+	                    classDef.getInterfaces(),
+	                    classDef.getSourceFile(),
+	                    classDef.getAnnotations(),
+	                    classDef.getFields(),
+	                    newMethods);
+            }
         }
         
         return classDef;
@@ -124,16 +133,16 @@ public class umbreyta {
             	// Check and replace if needed
             	// match = doesInstructionMatch()
             	// mmi.replaceInstruction(index, match.getreplacementInstruction() );
-                System.out.println("    Processing instruction: " + instruction.getClass().getSimpleName());
+                // System.out.println("    Processing instruction: " + instruction.getClass().getSimpleName());
                 BuilderInstruction newInstr = getBuilderReplacement(instruction);
                 if (newInstr != null) {
                 	mmi.replaceInstruction(index, newInstr);
+                	changed = true;
                 }
                 index++;
             }
             
             // testing mmi approach
-            changed = true;
             if (changed) {
             	ImmutableMethod newMethod = new ImmutableMethod(
 	        		method.getDefiningClass(),
