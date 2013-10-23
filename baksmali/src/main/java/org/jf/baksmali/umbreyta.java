@@ -76,6 +76,9 @@ public class umbreyta {
             	if (transformed != null) {
             		newMethods.add(transformed);
             		changed = true;
+//                    System.out.println("From Class: " + classDef);
+//                    System.out.println("");
+
             	} else {
             		newMethods.add(method);
             	}
@@ -177,8 +180,10 @@ public class umbreyta {
         		ImmutableMethodReference ref = (ImmutableMethodReference) ref2;
         		
         		// Replace httpClient->execute
-        		if (ref.getDefiningClass().equals(HTTPCLIENT) && (ref.getName().equals(EXECUTE))) {
-        	        System.out.println("    *** Replacing Instruction: " + HTTPCLIENT + "->" + EXECUTE);
+        		if ( (ref.getDefiningClass().equals(HTTPCLIENT) && (ref.getName().equals(EXECUTE))) ||
+        				(ref.getDefiningClass().equals(DEFAULT_HTTPCLIENT) && (ref.getName().equals(EXECUTE)))) {
+
+        			System.out.println("    *** Replacing Instruction: " + getPrintable(ref));
 
         			// Construct the method definition:
         	        // Insert HTTPCLIENT as the first arg since we're passing it into the wrapper
@@ -208,7 +213,7 @@ public class umbreyta {
         		
         		// Replace url->openConnection
         		if (ref.getDefiningClass().equals(URL_CLASS) && (ref.getName().equals(OPEN_CONN_METHOD))) {
-        	        System.out.println("    *** Replacing Instruction: " + URL_CLASS + "->" + OPEN_CONN_METHOD);
+        			System.out.println("    *** Replacing Instruction: " + getPrintable(ref));
 
         			// Sanity checks
         			if (!ref.getReturnType().equalsIgnoreCase(URL_CONNECTION)) {
@@ -229,8 +234,9 @@ public class umbreyta {
         		}
         		
         		
+        		
     		} else {
-    			System.out.println("Skipping since it's not a MethodReference " + ref2);
+    			System.out.println("Skipping since it's not a MethodReference ");
     		}
     	}
     	return null;
@@ -246,6 +252,11 @@ public class umbreyta {
     	}
     
     	return true;
+    }
+    
+    private static String getPrintable(ImmutableMethodReference ref) {
+    	String clazz = ref.getDefiningClass();
+    	return clazz.substring(1, clazz.length()-1).replace('/', '.') + "." + ref.getName();
     }
 
 
