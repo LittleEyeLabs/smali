@@ -39,8 +39,10 @@ public class umbreyta {
 	
 	
 	// Classes
-	final static String DEFAULT_HTTPCLIENT = "Lorg/apache/http/impl/client/DefaultHttpClient;";	// TODO: Use this.
-	final static String HTTPCLIENT = "Lorg/apache/http/client/HttpClient;";
+
+	final static String HTTPCLIENT = "Lorg/apache/http/client/HttpClient;";  // the interface
+	final static String DEFAULT_HTTPCLIENT = "Lorg/apache/http/impl/client/DefaultHttpClient;";
+	final static String ANDROID_HTTPCLIENT = "Landroid/net/http/AndroidHttpClient;";
 	
 	// Methods
 	final static String EXECUTE = "execute";
@@ -181,7 +183,8 @@ public class umbreyta {
         		
         		// Replace httpClient->execute
         		if ( (ref.getDefiningClass().equals(HTTPCLIENT) && (ref.getName().equals(EXECUTE))) ||
-        				(ref.getDefiningClass().equals(DEFAULT_HTTPCLIENT) && (ref.getName().equals(EXECUTE)))) {
+        				(ref.getDefiningClass().equals(DEFAULT_HTTPCLIENT) && (ref.getName().equals(EXECUTE))) ||
+        				(ref.getDefiningClass().equals(ANDROID_HTTPCLIENT) && (ref.getName().equals(EXECUTE))) ) {
 
         			System.out.println("    *** Replacing Instruction: " + getPrintable(ref));
 
