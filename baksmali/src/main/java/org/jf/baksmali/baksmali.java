@@ -28,10 +28,18 @@
 
 package org.jf.baksmali;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Ordering;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
 import org.jf.baksmali.Adaptors.ClassDefinition;
 import org.jf.dexlib2.analysis.ClassPath;
 import org.jf.dexlib2.iface.ClassDef;
@@ -40,12 +48,18 @@ import org.jf.dexlib2.util.SyntheticAccessorResolver;
 import org.jf.util.ClassFileNameHandler;
 import org.jf.util.IndentingWriter;
 
-import java.io.*;
-import java.util.List;
-import java.util.concurrent.*;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Ordering;
 
 public class baksmali {
 
+	/**
+	 * Disassemble a dex file
+	 * 
+	 * @return true if successful
+	 */
     public static boolean disassembleDexFile(DexFile dexFile, final baksmaliOptions options) {
         if (options.registerInfo != 0 || options.deodex) {
             try {
@@ -62,7 +76,7 @@ public class baksmali {
             } catch (Exception ex) {
                 System.err.println("\n\nError occured while loading boot class path files. Aborting.");
                 ex.printStackTrace(System.err);
-                System.exit(1);
+                return false;
             }
         }
 
@@ -70,7 +84,7 @@ public class baksmali {
         if (!outputDirectoryFile.exists()) {
             if (!outputDirectoryFile.mkdirs()) {
                 System.err.println("Can't create the output directory " + options.outputDirectory);
-                System.exit(1);
+                return false;
             }
         }
 
@@ -139,15 +153,12 @@ public class baksmali {
 
         // GL: Seems like a good place to transform
         if (options.transform) {
-        	boolean succeeded = false;
         	try {
         		classDef = umbreyta.transformClass(classDef);
-        		succeeded = true;
-        	} finally {
-        		if (!succeeded) {
-        			System.err.println("Error in: "+classDef);
-        		}
-        		
+        	} catch (Exception e) {
+        		System.err.println("Error transforming class: "+classDef);
+        		e.printStackTrace();
+        		return false;
         	}
         }
 
