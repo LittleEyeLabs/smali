@@ -29,46 +29,44 @@ import com.google.common.collect.ImmutableList.Builder;
  * 3. Iterate over the dex file, for each class, make any method modifications as needed, and convert the modified class to an ImmutableClassDef and add it to the above list
  * 4. Construct a new ImmutableDexFile using the class list, and write that with DexFileFactory.writeDexFile()
  * 
+ * TODO:
+ * - Consider scanning the class/method first before even trying to instrument
+ * - More generic way of defining what instruction has to be transformed and into what.
+ * 
  * @author gaurav lochan
  */
 public class umbreyta {
-	// Instrumentation
+	// Instrumentation code
 	final static String INSTRUMENTATION_PACKAGE = "Lcom/littleeyelabs/instrumentation";
 	final static String HTTPCLIENT_WRAPPER = "Lcom/littleeyelabs/instrumentation/HttpClientWrapper;";
 	final static String INSTRUMENTATION_FACTORY = "Lcom/littleeyelabs/instrumentation/InstrumentationFactory;";
 	
 	
-	// Classes
-
+	// Classes to replace
 	final static String HTTPCLIENT = "Lorg/apache/http/client/HttpClient;";  // the interface
 	final static String DEFAULT_HTTPCLIENT = "Lorg/apache/http/impl/client/DefaultHttpClient;";
 	final static String ANDROID_HTTPCLIENT = "Landroid/net/http/AndroidHttpClient;";
-	
-	// Methods
+	final static String URL_CLASS = "Ljava/net/URL;";
+
+	// Methods to replace
 	final static String EXECUTE = "execute";
+	final static String OPEN_CONN_METHOD = "openConnection";
 	
 	// Argument types
 	final static String HTTP_URI_REQ = "Lorg/apache/http/client/methods/HttpUriRequest;";
 	
 	// Return type
 	final static String HTTP_RESPONSE = "Lorg/apache/http/HttpResponse;";
-	
-	
-    // invoke-virtual {v2}, Ljava/net/URL;->openConnection()Ljava/net/URLConnection;
-	// to
-	// invoke-static {v2}, Lcom/littleeyelabs/instrumentation/InstrumentationFactory;->getUrlConnection(Ljava/net/URL;)Ljava/net/URLConnection;
-	final static String URL_CLASS = "Ljava/net/URL;";
-	final static String OPEN_CONN_METHOD = "openConnection";
 	final static String URL_CONNECTION = "Ljava/net/URLConnection;";
+	
 
     static ClassDef transformClass(ClassDef classDef) {
-        System.out.println("\nProcessing Class: " + classDef);
+        // System.out.println("\nProcessing Class: " + classDef);
 
-        // First, scan and see if we need to modify this class
-        boolean needToChange = needToTransform(classDef);
-        
-
-        if (needToChange) {
+        if (isInstrumentationClass(classDef)) {
+            System.out.println("Skip instrumentation class: " + classDef);
+        } else {
+        	
         	Iterable<? extends Method> methods = classDef.getMethods();
             List<Method> newMethods = new ArrayList<Method>();
 
@@ -76,11 +74,9 @@ public class umbreyta {
             for (Method method: methods) {
             	Method transformed = transformMethod(method);
             	if (transformed != null) {
+                    System.out.println("Transformed Class: " + classDef + "\n");
             		newMethods.add(transformed);
             		changed = true;
-//                    System.out.println("From Class: " + classDef);
-//                    System.out.println("");
-
             	} else {
             		newMethods.add(method);
             	}
@@ -111,37 +107,21 @@ public class umbreyta {
      * @return null if no transformation was done
      */
     private static Method transformMethod(Method method) {
-        System.out.println("  Processing Method: " + method.getName());
+        // System.out.println("  Processing Method: " + method.getName());
 
     	// A method contains a bunch of metadata (that shouldn't change in our
     	// transformation) and an implementation.
         MethodImplementation implementation = method.getImplementation();
 
         if (implementation != null) {
-            MutableMethodImplementation mmi;
+            MutableMethodImplementation mmi = new MutableMethodImplementation(implementation);
 
-            // This success/try-catch is simple to debug issues in early smali source
-            // TODO: Remove this once we don't see this any more.
-            boolean success = false;
-            try {
-            	mmi = new MutableMethodImplementation(implementation);
-            	success = true;
-            } finally {
-            	if (success == false) {
-            		System.err.println("Error creating MMI");
-            	}
-            }
-        	
-            
             Iterable<? extends Instruction> instructions = mmi.getInstructions();
             boolean changed = false;
             int index = 0;
             for (Instruction instruction:instructions) {
-            	// Check and replace if needed
-            	// match = doesInstructionMatch()
-            	// mmi.replaceInstruction(index, match.getreplacementInstruction() );
                 // System.out.println("    Processing instruction: " + instruction.getClass().getSimpleName());
-                BuilderInstruction newInstr = getBuilderReplacement(instruction);
+                BuilderInstruction newInstr = replaceInstruction(instruction);
                 if (newInstr != null) {
                 	mmi.replaceInstruction(index, newInstr);
                 	changed = true;
@@ -149,8 +129,9 @@ public class umbreyta {
                 index++;
             }
             
-            // testing mmi approach
             if (changed) {
+                System.out.println("  Transformed Method: " + method.getName());
+
             	ImmutableMethod newMethod = new ImmutableMethod(
 	        		method.getDefiningClass(),
 	        		method.getName(),
@@ -170,8 +151,7 @@ public class umbreyta {
     }
         
     
-    private static BuilderInstruction getBuilderReplacement(Instruction old) {
-    	Opcode op = old.getOpcode();
+    private static BuilderInstruction replaceInstruction(Instruction old) {
 
     	if (old instanceof Instruction35c) {
     		// Cast to ImmutableInstruction since it has methods we need
@@ -236,8 +216,6 @@ public class umbreyta {
         			return newInstruction;
         		}
         		
-        		
-        		
     		} else {
     			System.out.println("Skipping since it's not a MethodReference ");
     		}
@@ -247,14 +225,11 @@ public class umbreyta {
 
     
         
-    private static boolean needToTransform(ClassDef classDef) {
-    	// TODO: Check if class needs to be transformed
+    private static boolean isInstrumentationClass(ClassDef classDef) {
     	if (classDef.toString().startsWith(INSTRUMENTATION_PACKAGE)) {
-    		System.out.println("*** Skip instrumentation class");
-    		return false;
+    		return true;
     	}
-    
-    	return true;
+    	return false;
     }
     
     private static String getPrintable(ImmutableMethodReference ref) {
@@ -262,6 +237,5 @@ public class umbreyta {
     	return clazz.substring(1, clazz.length()-1).replace('/', '.') + "." + ref.getName();
     }
 
-
-
+    
 }
