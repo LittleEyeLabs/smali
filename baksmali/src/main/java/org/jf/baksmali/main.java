@@ -218,6 +218,10 @@ public class main {
                 case 'K':
                     options.checkPackagePrivateAccess = true;
                     break;
+                case 't':
+                    options.transform = true;
+                    break;
+
                 default:
                     assert false;
             }

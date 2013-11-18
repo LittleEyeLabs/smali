@@ -69,9 +69,9 @@ public class baksmaliOptions {
     public int registerInfo = 0;
     public ClassPath classPath = null;
     public int jobs = -1;
-
-    public boolean transform = true;
-    public String transformedFile = "transformed.dex";
+    
+    public boolean outputTransformInfo = false;
+    public boolean transform = false;
     
     public SyntheticAccessorResolver syntheticAccessorResolver = null;
 

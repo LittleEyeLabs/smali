@@ -154,7 +154,7 @@ public class baksmali {
         // GL: Seems like a good place to transform
         if (options.transform) {
         	try {
-        		classDef = umbreyta.transformClass(classDef);
+        		classDef = umbreyta.transformClass(classDef, options);
         	} catch (Exception e) {
         		System.err.println("Error transforming class: "+classDef);
         		e.printStackTrace();

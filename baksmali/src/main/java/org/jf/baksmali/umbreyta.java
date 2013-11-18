@@ -59,12 +59,15 @@ public class umbreyta {
 	final static String HTTP_RESPONSE = "Lorg/apache/http/HttpResponse;";
 	final static String URL_CONNECTION = "Ljava/net/URLConnection;";
 	
+	static baksmaliOptions options;
 
-    static ClassDef transformClass(ClassDef classDef) {
-        // System.out.println("\nProcessing Class: " + classDef);
+    static ClassDef transformClass(ClassDef classDef, baksmaliOptions _options) {
+    	options = _options;
+    	
+    	debugPrint("\nProcessing Class: " + classDef);
 
         if (isInstrumentationClass(classDef)) {
-            System.out.println("Skip instrumentation class: " + classDef);
+        	debugPrint("Skip instrumentation class");
         } else {
         	
         	Iterable<? extends Method> methods = classDef.getMethods();
@@ -74,7 +77,7 @@ public class umbreyta {
             for (Method method: methods) {
             	Method transformed = transformMethod(method);
             	if (transformed != null) {
-                    System.out.println("Transformed Class: " + classDef + "\n");
+            		debugPrint("Transformed Class: " + classDef + "\n");
             		newMethods.add(transformed);
             		changed = true;
             	} else {
@@ -130,7 +133,7 @@ public class umbreyta {
             }
             
             if (changed) {
-                System.out.println("  Transformed Method: " + method.getName());
+            	debugPrint("  Transformed Method: " + method.getName());
 
             	ImmutableMethod newMethod = new ImmutableMethod(
 	        		method.getDefiningClass(),
@@ -166,7 +169,7 @@ public class umbreyta {
         				(ref.getDefiningClass().equals(DEFAULT_HTTPCLIENT) && (ref.getName().equals(EXECUTE))) ||
         				(ref.getDefiningClass().equals(ANDROID_HTTPCLIENT) && (ref.getName().equals(EXECUTE))) ) {
 
-        			System.out.println("    *** Replacing Instruction: " + getPrintable(ref));
+        			debugPrint("    *** Replacing Instruction: " + getPrintable(ref));
 
         			// Construct the method definition:
         	        // Insert HTTPCLIENT as the first arg since we're passing it into the wrapper
@@ -196,7 +199,7 @@ public class umbreyta {
         		
         		// Replace url->openConnection
         		if (ref.getDefiningClass().equals(URL_CLASS) && (ref.getName().equals(OPEN_CONN_METHOD))) {
-        			System.out.println("    *** Replacing Instruction: " + getPrintable(ref));
+        			debugPrint("    *** Replacing Instruction: " + getPrintable(ref));
 
         			// Sanity checks
         			if (!ref.getReturnType().equalsIgnoreCase(URL_CONNECTION)) {
@@ -237,5 +240,10 @@ public class umbreyta {
     	return clazz.substring(1, clazz.length()-1).replace('/', '.') + "." + ref.getName();
     }
 
+    private static void debugPrint(String message) {
+    	if (options.outputTransformInfo) {
+    		System.out.println(message);
+    	}
+    }
     
 }
