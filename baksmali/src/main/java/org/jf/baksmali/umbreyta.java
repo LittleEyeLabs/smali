@@ -220,7 +220,7 @@ public class umbreyta {
         		}
         		
     		} else {
-    			System.out.println("Skipping since it's not a MethodReference ");
+    			debugPrint("Skipping since it's not a MethodReference: " + ref2.toString());
     		}
     	}
     	return null;

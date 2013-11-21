@@ -242,6 +242,11 @@ public abstract class DexWriter<
             md.update(buffer, 0, bytesRead);
             bytesRead = input.read(buffer);
         }
+        try {
+        	input.close();
+        } catch (IOException e) {
+        	// ignore cleanup exception
+        }
 
         byte[] signature = md.digest();
         if (signature.length != HeaderItem.SIGNATURE_SIZE) {
@@ -263,6 +268,11 @@ public abstract class DexWriter<
         while (bytesRead >= 0) {
             a32.update(buffer, 0, bytesRead);
             bytesRead = input.read(buffer);
+        }
+        try {
+        	input.close();
+        } catch (IOException e) {
+        	// ignore cleanup exception
         }
 
         // write checksum, utilizing logic in DexWriter to write the integer value properly
