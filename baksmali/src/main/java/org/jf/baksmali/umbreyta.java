@@ -41,35 +41,47 @@ public class umbreyta {
 	final static String HTTPCLIENT_WRAPPER = "Lcom/littleeyelabs/instrumentation/HttpClientWrapper;";
 	final static String INSTRUMENTATION_FACTORY = "Lcom/littleeyelabs/instrumentation/InstrumentationFactory;";
 
-
+	// Networking code
+	final static String APACHE_HTTPCLIENT_PACKAGE = "Lorg/apache/http/client";
+	final static String JAVA_NET_PACKAGE = "Ljava/net/";
+	final static String OKHTTP_PACKAGE = "Lcom/squareup/okhttp/";
+	
+	
 	// Classes to replace
 	final static String HTTPCLIENT = "Lorg/apache/http/client/HttpClient;";  // the interface
 	final static String DEFAULT_HTTPCLIENT = "Lorg/apache/http/impl/client/DefaultHttpClient;";
 	final static String ANDROID_HTTPCLIENT = "Landroid/net/http/AndroidHttpClient;";
 	final static String URL_CLASS = "Ljava/net/URL;";
+	final static String OKHTTP_CLIENT = "Lcom/squareup/okhttp/OkHttpClient;";
 
 	// Methods to replace
 	final static String EXECUTE = "execute";
 	final static String OPEN_CONN_METHOD = "openConnection";
+	final static String OPEN_METHOD = "open";
 
+	// New Method
+	final static String OKHTTP_OPEN_METHOD = "openOkHttpConnection";
+	
 	// Argument types
 	final static String HTTP_URI_REQ = "Lorg/apache/http/client/methods/HttpUriRequest;";
 
 	// Return type
 	final static String HTTP_RESPONSE = "Lorg/apache/http/HttpResponse;";
 	final static String URL_CONNECTION = "Ljava/net/URLConnection;";
+	final static String HTTP_URL_CONNECTION = "Ljava/net/HttpURLConnection;";
 
 	static baksmaliOptions options;
 
 	static ClassDef transformClass(ClassDef classDef, baksmaliOptions _options) {
 		options = _options;
-
+		
 		debugPrint("\nProcessing Class: " + classDef);
 
 		if (isInstrumentationClass(classDef)) {
 			debugPrint("Skip instrumentation class");
+		} else if (isNetworkingClientCode(classDef)) {
+			debugPrint("Skip Networking client code");
 		} else {
-
 			Iterable<? extends Method> methods = classDef.getMethods();
 			List<Method> newMethods = new ArrayList<Method>();
 
@@ -219,6 +231,29 @@ public class umbreyta {
 					return newInstruction;
 				}
 
+				// Replace OkHttp (HttpUrlConnection)
+				//    invoke-virtual {v0, v3}, Lcom/squareup/okhttp/OkHttpClient;->open(Ljava/net/URL;)Ljava/net/HttpURLConnection;
+				if (ref.getDefiningClass().equals(OKHTTP_CLIENT) && (ref.getName().equals(OPEN_METHOD))) {
+					debugPrint("    *** Replacing Instruction: " + getPrintable(ref));
+
+					// Sanity checks
+					if (!ref.getReturnType().equalsIgnoreCase(HTTP_URL_CONNECTION)) {
+						System.err.println("HttpUrlConnection return Type mismatch");
+					}
+
+					ImmutableMethodReference clientWrapperRef = new ImmutableMethodReference(INSTRUMENTATION_FACTORY, OKHTTP_OPEN_METHOD,
+							ImmutableList.of(OKHTTP_CLIENT, URL_CLASS),
+							HTTP_URL_CONNECTION);
+
+					BuilderInstruction35c newInstruction = new BuilderInstruction35c(
+							Opcode.INVOKE_STATIC, old35c.getRegisterCount(),
+							old35c.getRegisterC(), old35c.getRegisterD(), old35c.getRegisterE(), old35c.getRegisterF(), old35c.getRegisterG(),
+							clientWrapperRef);
+
+					return newInstruction;
+				}
+
+
 			} else {
 				debugPrint("Skipping since it's not a MethodReference: " + ref2.toString());
 			}
@@ -230,6 +265,18 @@ public class umbreyta {
 
 	private static boolean isInstrumentationClass(ClassDef classDef) {
 		if (classDef.toString().startsWith(INSTRUMENTATION_PACKAGE)) {
+			return true;
+		}
+		return false;
+	}
+
+	
+	// don't instrument the networking library code itself.
+	// usually httpclient and urlconnection are not part of the apk but can be...
+	private static boolean isNetworkingClientCode(ClassDef classDef) {
+		if (classDef.toString().startsWith(APACHE_HTTPCLIENT_PACKAGE) || 
+				classDef.toString().startsWith(JAVA_NET_PACKAGE) ||
+				classDef.toString().startsWith(OKHTTP_PACKAGE)) {
 			return true;
 		}
 		return false;
